@@ -32,9 +32,6 @@ void Editor::Init(GLFWwindow* window) {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 450");
     
-    AddTestEntity();
-    AddTestEntity();
-    
     m_Initialized = true;
     LGE_LOG_INFO("Editor initialized");
 }
@@ -78,6 +75,7 @@ void Editor::AddTestEntity() {
     EditorEntity entity;
     entity.Name = "Entity " + std::to_string(m_Entities.size() + 1);
     entity.Selected = false;
+    entity.IsLight = false;
     m_Entities.push_back(entity);
 }
 
@@ -110,18 +108,15 @@ void Editor::RenderMainMenuBar() {
         if (ImGui::BeginMenu("Tools")) {
             if (ImGui::MenuItem("Create Cube")) {
                 LGE_LOG_INFO("Create Cube clicked!");
-                AddTestEntity();
                 if (m_CreateCubeCallback) {
                     m_CreateCubeCallback(glm::vec3(0.0f, 5.0f, 0.0f));
                 }
             }
-            if (ImGui::MenuItem("Create Sphere")) {
-                LGE_LOG_INFO("Create Sphere clicked!");
-                AddTestEntity();
-            }
-            if (ImGui::MenuItem("Create Plane")) {
-                LGE_LOG_INFO("Create Plane clicked!");
-                AddTestEntity();
+            if (ImGui::MenuItem("Create Point Light")) {
+                LGE_LOG_INFO("Create Point Light clicked!");
+                if (m_CreateLightCallback) {
+                    m_CreateLightCallback(glm::vec3(0.0f, 5.0f, 0.0f));
+                }
             }
             ImGui::EndMenu();
         }
@@ -151,6 +146,18 @@ void Editor::RenderSceneHierarchy() {
         }
     }
     
+    if (m_SelectedEntityIndex >= 0 && m_SelectedEntityIndex < (int)m_Entities.size()) {
+        ImGui::Separator();
+        if (ImGui::Button("Delete Selected")) {
+            LGE_LOG_INFO("Deleting entity: %s", m_Entities[m_SelectedEntityIndex].Name.c_str());
+            if (m_DeleteEntityCallback) {
+                m_DeleteEntityCallback(m_SelectedEntityIndex);
+            }
+            m_Entities.erase(m_Entities.begin() + m_SelectedEntityIndex);
+            m_SelectedEntityIndex = -1;
+        }
+    }
+    
     ImGui::End();
 }
 
@@ -161,8 +168,17 @@ void Editor::RenderInspector() {
         ImGui::Text("Selected: %s", m_Entities[m_SelectedEntityIndex].Name.c_str());
         ImGui::Separator();
         
-        static float position[3] = { 0.0f, 0.0f, 0.0f };
-        ImGui::DragFloat3("Position", position, 0.1f);
+        float position[3] = { 
+            m_Entities[m_SelectedEntityIndex].Position.x, 
+            m_Entities[m_SelectedEntityIndex].Position.y, 
+            m_Entities[m_SelectedEntityIndex].Position.z 
+        };
+        if (ImGui::DragFloat3("Position", position, 0.1f)) {
+            m_Entities[m_SelectedEntityIndex].Position = glm::vec3(position[0], position[1], position[2]);
+            if (m_UpdateEntityPositionCallback) {
+                m_UpdateEntityPositionCallback(m_SelectedEntityIndex, glm::vec3(position[0], position[1], position[2]));
+            }
+        }
         
         static float rotation[3] = { 0.0f, 0.0f, 0.0f };
         ImGui::DragFloat3("Rotation", rotation, 0.1f);

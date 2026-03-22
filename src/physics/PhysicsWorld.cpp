@@ -166,6 +166,42 @@ void PhysicsWorld::ResolveCollisions() {
             glm::vec3 vel = otherBody->GetLinearVelocity();
             vel.y = 0.0f;
             otherBody->SetLinearVelocity(vel);
+        } else {
+            float combinedRestitution = std::min(bodyA->GetRestitution(), bodyB->GetRestitution());
+            
+            glm::vec3 relativeVelocity = bodyA->GetLinearVelocity() - bodyB->GetLinearVelocity();
+            float velocityAlongNormal = glm::dot(relativeVelocity, info.Normal);
+            
+            if (velocityAlongNormal > 0) {
+                continue;
+            }
+            
+            float invMassA = bodyA->GetInverseMass();
+            float invMassB = bodyB->GetInverseMass();
+            float totalInvMass = invMassA + invMassB;
+            
+            if (totalInvMass == 0.0f) {
+                continue;
+            }
+            
+            float j = -(1.0f + combinedRestitution) * velocityAlongNormal;
+            j /= totalInvMass;
+            
+            glm::vec3 impulse = j * info.Normal;
+            bodyA->ApplyImpulse(impulse);
+            bodyB->ApplyImpulse(-impulse);
+            
+            float penetration = info.Distance;
+            float percent = 0.8f;
+            float slop = 0.01f;
+            
+            glm::vec3 correction = std::max(penetration - slop, 0.0f) * percent * info.Normal / totalInvMass;
+            if (!bodyA->IsStatic()) {
+                bodyA->SetPosition(bodyA->GetPosition() + correction * invMassA);
+            }
+            if (!bodyB->IsStatic()) {
+                bodyB->SetPosition(bodyB->GetPosition() - correction * invMassB);
+            }
         }
     }
 }

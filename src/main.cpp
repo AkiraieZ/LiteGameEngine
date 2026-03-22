@@ -23,6 +23,12 @@ struct SceneCube {
     glm::vec3 Color;
 };
 
+struct SceneLight {
+    glm::vec3 Position;
+    glm::vec3 Color;
+    float Intensity;
+};
+
 std::shared_ptr<LGE::Mesh> CreateCubeMesh() {
     std::vector<LGE::Vertex> vertices = {
         { { -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f } },
@@ -65,10 +71,10 @@ std::shared_ptr<LGE::Mesh> CreateCubeMesh() {
 
 std::shared_ptr<LGE::Mesh> CreatePlaneMesh() {
     std::vector<LGE::Vertex> vertices = {
-        { { -5.0f, 0.0f, -5.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-        { { 5.0f, 0.0f, -5.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-        { { 5.0f, 0.0f, 5.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
-        { { -5.0f, 0.0f, 5.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } }
+        { { -50.0f, 0.0f, -50.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+        { { 50.0f, 0.0f, -50.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
+        { { 50.0f, 0.0f, 50.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 1.0f } },
+        { { -50.0f, 0.0f, 50.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 1.0f } }
     };
     
     std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0 };
@@ -125,6 +131,7 @@ int main() {
     auto& physicsWorld = scene->GetPhysicsWorld();
     
     std::vector<SceneCube> sceneCubes;
+    std::vector<SceneLight> sceneLights;
     
     auto groundBody = std::make_shared<LGE::RigidBody>();
     groundBody->SetPosition(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -150,8 +157,35 @@ int main() {
         );
         sceneCubes.push_back(cube);
         
+        LGE::EditorEntity entity;
+        entity.Name = "Cube " + std::to_string(sceneCubes.size());
+        entity.Selected = false;
+        entity.IsLight = false;
+        entity.Position = position;
+        editor->m_Entities.push_back(entity);
+        
         LGE_LOG_INFO("Created cube at (%.1f, %.1f, %.1f)", position.x, position.y, position.z);
     };
+    
+    auto addLightAtPosition = [&](const glm::vec3& position) {
+        SceneLight light;
+        light.Position = position;
+        light.Color = glm::vec3(1.0f, 1.0f, 0.8f);
+        light.Intensity = 2.0f;
+        sceneLights.push_back(light);
+        
+        LGE::EditorEntity entity;
+        entity.Name = "Light " + std::to_string(sceneLights.size());
+        entity.Selected = false;
+        entity.IsLight = true;
+        entity.Position = position;
+        editor->m_Entities.push_back(entity);
+        
+        LGE_LOG_INFO("Created point light at (%.1f, %.1f, %.1f)", position.x, position.y, position.z);
+    };
+    
+    editor->SetCreateCubeCallback(addCubeAtPosition);
+    editor->SetCreateLightCallback(addLightAtPosition);
     
     addCubeAtPosition(glm::vec3(0.0f, 5.0f, 0.0f));
     sceneCubes[0].Color = glm::vec3(0.8f, 0.3f, 0.3f);
@@ -159,7 +193,58 @@ int main() {
     addCubeAtPosition(glm::vec3(2.0f, 7.0f, 0.0f));
     sceneCubes[1].Color = glm::vec3(0.3f, 0.3f, 0.8f);
     
-    editor->SetCreateCubeCallback(addCubeAtPosition);
+    addLightAtPosition(glm::vec3(5.0f, 5.0f, 5.0f));
+    
+    auto deleteEntityCallback = [&](int index) {
+        int lightCount = 0;
+        int cubeCount = 0;
+        
+        for (size_t i = 0; i < editor->m_Entities.size(); i++) {
+            if (editor->m_Entities[i].IsLight) {
+                if (i == (size_t)index) {
+                    sceneLights.erase(sceneLights.begin() + lightCount);
+                    LGE_LOG_INFO("Deleted light at index %d", index);
+                    return;
+                }
+                lightCount++;
+            } else {
+                if (i == (size_t)index) {
+                    physicsWorld.RemoveRigidBody(sceneCubes[cubeCount].Body);
+                    sceneCubes.erase(sceneCubes.begin() + cubeCount);
+                    LGE_LOG_INFO("Deleted cube at index %d", index);
+                    return;
+                }
+                cubeCount++;
+            }
+        }
+    };
+    
+    editor->SetDeleteEntityCallback(deleteEntityCallback);
+    
+    auto updateEntityPositionCallback = [&](int index, const glm::vec3& position) {
+        int lightCount = 0;
+        int cubeCount = 0;
+        
+        for (size_t i = 0; i < editor->m_Entities.size(); i++) {
+            if (editor->m_Entities[i].IsLight) {
+                if (i == (size_t)index) {
+                    sceneLights[lightCount].Position = position;
+                    LGE_LOG_INFO("Updated light position to (%.1f, %.1f, %.1f)", position.x, position.y, position.z);
+                    return;
+                }
+                lightCount++;
+            } else {
+                if (i == (size_t)index) {
+                    sceneCubes[cubeCount].Body->SetPosition(position);
+                    LGE_LOG_INFO("Updated cube position to (%.1f, %.1f, %.1f)", position.x, position.y, position.z);
+                    return;
+                }
+                cubeCount++;
+            }
+        }
+    };
+    
+    editor->SetUpdateEntityPositionCallback(updateEntityPositionCallback);
     
     bool firstMouse = true;
     float lastX = windowProps.Width / 2.0f;
@@ -235,7 +320,15 @@ int main() {
         shader->SetUniformMat4("u_View", camera.GetViewMatrix());
         shader->SetUniformMat4("u_Projection", camera.GetProjectionMatrix());
         shader->SetUniformVec3("u_ViewPos", camera.GetPosition());
-        shader->SetUniformVec3("u_LightPos", glm::vec3(5.0f, 5.0f, 5.0f));
+        
+        int lightCount = std::min((int)sceneLights.size(), 4);
+        shader->SetUniform1i("u_LightCount", lightCount);
+        
+        for (int i = 0; i < lightCount; i++) {
+            shader->SetUniformVec3("u_LightPositions[" + std::to_string(i) + "]", sceneLights[i].Position);
+            shader->SetUniformVec3("u_LightColors[" + std::to_string(i) + "]", sceneLights[i].Color);
+            shader->SetUniform1f("u_LightIntensities[" + std::to_string(i) + "]", sceneLights[i].Intensity);
+        }
         
         glm::mat4 groundTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f));
         shader->SetUniformMat4("u_Model", groundTransform);
