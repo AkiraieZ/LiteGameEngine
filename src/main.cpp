@@ -1,3 +1,4 @@
+#include <glad/gl.h>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -8,6 +9,7 @@
 #include "renderer/Mesh.h"
 #include "renderer/Texture.h"
 #include "renderer/Camera.h"
+#include "renderer/Framebuffer.h"
 #include "input/Input.h"
 #include "editor/Editor.h"
 #include "scene/Scene.h"
@@ -118,8 +120,15 @@ int main() {
     editor->Init(window->GetNativeWindow());
     
     auto shader = std::make_shared<LGE::Shader>("shaders/basic.vert", "shaders/basic.frag");
+    auto shadowShader = std::make_shared<LGE::Shader>("shaders/shadow.vert", "shaders/shadow.frag");
     auto cubeMesh = CreateCubeMesh();
     auto planeMesh = CreatePlaneMesh();
+    
+    const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048;
+    LGE::Framebuffer::FramebufferSpecification shadowSpec;
+    shadowSpec.Width = SHADOW_WIDTH;
+    shadowSpec.Height = SHADOW_HEIGHT;
+    auto shadowFramebuffer = std::make_shared<LGE::Framebuffer>(shadowSpec);
     
     auto scene = std::make_unique<LGE::Scene>("Demo Scene");
     scene->Init();
@@ -311,6 +320,31 @@ int main() {
         
         scene->Update(deltaTime);
         
+        glm::vec3 lightPos = sceneLights.empty() ? glm::vec3(5.0f, 5.0f, 5.0f) : sceneLights[0].Position;
+        float near_plane = 1.0f, far_plane = 50.0f;
+        glm::mat4 lightProjection = glm::ortho(-20.0f, 20.0f, -20.0f, 20.0f, near_plane, far_plane);
+        glm::mat4 lightView = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 lightSpaceMatrix = lightProjection * lightView;
+        
+        shadowFramebuffer->Bind();
+        glClear(GL_DEPTH_BUFFER_BIT);
+        shadowShader->Bind();
+        shadowShader->SetUniformMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+        
+        glm::mat4 shadowGroundTransform = glm::mat4(1.0f);
+        shadowShader->SetUniformMat4("u_Model", shadowGroundTransform);
+        planeMesh->Render();
+        
+        for (const auto& cube : sceneCubes) {
+            glm::mat4 cubeTransform = glm::translate(glm::mat4(1.0f), cube.Body->GetPosition());
+            shadowShader->SetUniformMat4("u_Model", cubeTransform);
+            cubeMesh->Render();
+        }
+        
+        shadowShader->Unbind();
+        shadowFramebuffer->Unbind();
+        
+        glViewport(0, 0, windowProps.Width, windowProps.Height);
         glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_DEPTH_TEST);
@@ -320,6 +354,8 @@ int main() {
         shader->SetUniformMat4("u_View", camera.GetViewMatrix());
         shader->SetUniformMat4("u_Projection", camera.GetProjectionMatrix());
         shader->SetUniformVec3("u_ViewPos", camera.GetPosition());
+        shader->SetUniformMat4("u_LightSpaceMatrix", lightSpaceMatrix);
+        shader->SetUniform1i("u_UseShadows", 1);
         
         int lightCount = std::min((int)sceneLights.size(), 4);
         shader->SetUniform1i("u_LightCount", lightCount);
@@ -330,7 +366,11 @@ int main() {
             shader->SetUniform1f("u_LightIntensities[" + std::to_string(i) + "]", sceneLights[i].Intensity);
         }
         
-        glm::mat4 groundTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f));
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, shadowFramebuffer->GetDepthAttachmentRendererID());
+        shader->SetUniform1i("u_ShadowMap", 0);
+        
+        glm::mat4 groundTransform = glm::mat4(1.0f);
         shader->SetUniformMat4("u_Model", groundTransform);
         shader->SetUniformVec3("u_Albedo", glm::vec3(0.3f, 0.5f, 0.3f));
         planeMesh->Render();
