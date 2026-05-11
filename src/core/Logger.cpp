@@ -5,6 +5,7 @@ namespace LGE {
 
 std::ofstream Logger::s_LogFile;
 bool Logger::s_Initialized = false;
+std::vector<LogMessage> Logger::s_Messages;
 
 void Logger::Init(const std::string& logFile) {
     if (s_Initialized) return;
@@ -38,6 +39,14 @@ void Logger::Log(LogLevel level, const std::string& message, const char* file, i
         s_LogFile << logMessage << std::endl;
         s_LogFile.flush();
     }
+    
+    LogMessage msg;
+    msg.level = level;
+    msg.message = message;
+    msg.timestamp = timestamp;
+    msg.file = file;
+    msg.line = line;
+    s_Messages.push_back(msg);
 }
 
 std::string Logger::GetTimestamp() {

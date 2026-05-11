@@ -189,11 +189,24 @@ void Editor::RenderInspector() {
 void Editor::RenderConsole() {
     ImGui::Begin("Console", &m_ShowConsole);
     
-    ImGui::Text("Console output will appear here");
+    if (ImGui::Button("Clear")) {
+        LGE::Logger::ClearMessages();
+    }
     ImGui::Separator();
     
-    ImGui::TextWrapped("Use the menu bar and Hierarchy panel to interact with the engine.");
-    ImGui::TextWrapped("Try clicking 'Add Entity' or using Tools -> Create Cube!");
+    ImVec4 color;
+    const auto& messages = LGE::Logger::GetMessages();
+    for (const auto& msg : messages) {
+        switch (msg.level) {
+            case LGE::LogLevel::DEBUG:    color = ImVec4(0.7f, 0.7f, 0.7f, 1.0f); break;
+            case LGE::LogLevel::INFO:     color = ImVec4(0.2f, 0.8f, 0.2f, 1.0f); break;
+            case LGE::LogLevel::WARNING:  color = ImVec4(1.0f, 0.8f, 0.0f, 1.0f); break;
+            case LGE::LogLevel::ERROR:    color = ImVec4(1.0f, 0.2f, 0.2f, 1.0f); break;
+            case LGE::LogLevel::FATAL:    color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
+            default:                      color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
+        }
+        ImGui::TextColored(color, "[%s] %s", msg.timestamp.c_str(), msg.message.c_str());
+    }
     
     ImGui::End();
 }

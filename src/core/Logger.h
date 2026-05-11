@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <vector>
 
 namespace LGE {
 
@@ -18,10 +19,21 @@ enum class LogLevel {
     FATAL
 };
 
+struct LogMessage {
+    LogLevel level;
+    std::string message;
+    std::string timestamp;
+    std::string file;
+    int line;
+};
+
 class Logger {
 public:
     static void Init(const std::string& logFile = "engine.log");
     static void Shutdown();
+    
+    static const std::vector<LogMessage>& GetMessages() { return s_Messages; }
+    static void ClearMessages() { s_Messages.clear(); }
     
     static void Log(LogLevel level, const std::string& message, const char* file, int line);
     
@@ -51,6 +63,8 @@ public:
     }
 
 private:
+    static std::vector<LogMessage> s_Messages;
+    
     template<typename... Args>
     static std::string Format(const std::string& format, Args... args) {
         size_t size = snprintf(nullptr, 0, format.c_str(), args...) + 1;
