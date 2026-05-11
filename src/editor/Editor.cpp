@@ -179,12 +179,6 @@ void Editor::RenderInspector() {
                 m_UpdateEntityPositionCallback(m_SelectedEntityIndex, glm::vec3(position[0], position[1], position[2]));
             }
         }
-        
-        static float rotation[3] = { 0.0f, 0.0f, 0.0f };
-        ImGui::DragFloat3("Rotation", rotation, 0.1f);
-        
-        static float scale[3] = { 1.0f, 1.0f, 1.0f };
-        ImGui::DragFloat3("Scale", scale, 0.1f);
     } else {
         ImGui::Text("No entity selected");
     }
